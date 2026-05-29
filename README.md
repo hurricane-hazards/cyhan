@@ -1,30 +1,56 @@
 # C++/Python Hybrid Architecture Network (CyHAN)
- 
-**Standard v1.1**
- 
-CyHAN (pronounced "cyan") establishes a unified computational architecture for high-performance scientific and engineering platforms.
- 
+## Standard v2.0
+
+CyHAN (pronounced "cyan") establishes a unified computational architecture for
+high-performance scientific and engineering platforms.
+
 It enforces:
- 
+
 - A single canonical execution path
-- High-performance C++ compute engines
-- Python-based orchestration, scaled to need
-- Authoritative API boundary
+- High-performance C++ compute engines (numerical authority)
+- Python orchestration, scaled to need
+- An authoritative API boundary
 - Native Qt desktop clients
 - Cloud-ready web frontends
-- Desktop–cloud execution parity
+- Desktop / cloud execution parity
 - Module-first decomposition for independent distribution
+- A defined root-level integration tier above the modules
 
-All computation flows through one authoritative backend stack. Capability is partitioned into self-contained modules.
- 
+All computation flows through one authoritative backend stack. Capability is
+partitioned into self-contained modules, composed by a shared integration tier.
+
+This README is a summary. The normative specification is
+`docs/CyHAN-Standard-v2.0.md`; where this document and the standard differ, the
+standard governs.
+
 ---
- 
+
+## What's new in v2.0
+
+v2.0 is a **MAJOR** increment over v1.1:
+
+- **Root-level integration is now in scope.** v1.1 forbade root-level `backend/`
+  and `frontend/` directories pending a future amendment. v2.0 is that amendment:
+  a shared API surface and shared frontend adapters are specified and permitted.
+- **The per-module entry contract is fixed.** Every module ships two mandatory
+  files: a user-facing **launcher** (`run_<name>.py`) and a non-user-facing
+  **orchestrator** (`main_<name>.py`). The launcher carries options and a launch
+  call; the orchestrator carries the logic.
+- **Conformance is stated as behavioral.** Compliance is judged by whether each
+  architectural role is fulfilled, not by whether a particular file exists. The
+  standard adopts the explicit RFC 2119 keyword register.
+
+Carried forward from v1.1: module-first decomposition, C++-first numerical
+authority, and orchestration scaled to module complexity.
+
+---
+
 ## Core Architecture
- 
+
 ```
 Desktop Client (Qt C++)
 or
-Web Client (React / Browser)
+Web Client (Browser)
 │
 ▼
 Python API
@@ -33,229 +59,238 @@ Python Orchestration
 ▼
 C++ Engines
 ```
- 
-Both desktop and web clients are peers.
- 
+
+Desktop and web clients are peers. Neither owns computation.
+
 The ordering reflects:
- 
+
 - Native-first design philosophy
 - Performance authority in C++
 - Desktop as the primary engineering environment
 - Web as a scalable distribution interface
+
 ---
- 
+
 ## Architectural Principles
- 
+
 ### 1. Single Execution Path
- 
+
 All production compute SHALL traverse:
- 
+
 ```
 Client → Python API → Python Orchestration → C++ Engines
 ```
- 
+
 No client may directly invoke C++ engines in compliant deployments.
- 
+
 ### 2. C++-First Numerical Authority
- 
-C++ engines:
- 
-- Implement performance-critical numerical kernels
-- Remain reproducible
-- Avoid UI dependencies
-- Avoid HTTP routing
-- Avoid workflow orchestration
 
-C++ is the default for computation. Python is employed where it provides structural benefit.
- 
-### 3. Orchestration Governance (Scaled to Need)
- 
-Python orchestration is an architectural **role** realized in one of two artifact forms per module:
- 
-- A dedicated Python package, when the module performs workflow assembly, multi-step composition, AI/ML integration, or ensemble coordination.
-- The module's launcher script (`run_<name>.py`), when the module's workflow reduces to a direct engine invocation.
+C++ engines implement performance-critical numerical kernels, remain
+reproducible, and avoid UI dependencies, HTTP routing, and workflow
+orchestration. C++ is the default for computation. Python is employed where it
+provides structural benefit, never by default.
 
-In either form, orchestration:
+### 3. The Launcher / Orchestrator Contract
 
-- Assembles workflows
-- Coordinates engine calls
-- Manages job lifecycle
-- Performs lightweight post-processing
-- Remains UI-agnostic
-Python coordinates. It does not numerically dominate.
- 
-### 4. API Contract Authority
- 
-The Python API layer (when realized at root level):
- 
-- Defines the canonical system boundary
-- Exposes versioned endpoints
-- Validates inputs
-- Handles authentication
-- Dispatches to orchestration
+Every module exposes its work through two files with a strict division of
+audience:
 
-The API governs system semantics. Root-level API integration is anticipated future work; in v1.1, callers invoke module orchestration directly.
- 
-### 5. Modular Decomposition
- 
-Capability is partitioned into **modules**. Each module is a self-contained vertical that realizes the engine and orchestration roles for a single, well-defined capability. Modules build, run, and ship independently of one another.
- 
+- **Launcher, `run_<name>.py`** (user-facing). The control surface a scientist
+  or operator edits and runs: a header, a clearly delimited block of user
+  options (input paths, parameters, settings, toggles), and a call that launches
+  the module. It is a readable substitute for a long command-line invocation. It
+  contains no orchestration logic.
+- **Orchestrator, `main_<name>.py`** (not user-facing). The importable
+  realization of the Python Orchestration role: input validation, engine-call
+  composition, job lifecycle, lightweight post-processing. It begins as a single
+  file and expands into a package as complexity warrants.
+
+The launcher imports and calls the orchestrator. The orchestration role is never
+inlined into the launcher, even for trivial modules.
+
+### 4. Orchestration Governance (Scaled to Need)
+
+Orchestration assembles workflows, coordinates engine calls, manages job
+lifecycle, performs lightweight post-processing, and remains UI-agnostic. Its
+internal form scales with complexity: a single orchestrator file suffices for a
+direct engine invocation; a dedicated package is used for multi-step
+composition, AI/ML integration, or ensemble coordination. Python coordinates; it
+does not numerically dominate.
+
+### 5. API Contract Authority
+
+The Python API layer, realized at the root level, defines the canonical system
+boundary: versioned endpoints, input validation, authentication, and dispatch
+into module orchestrators. It governs system semantics. The API dispatches only
+through orchestrators and never reaches past one to invoke an engine directly.
+
+### 6. Modular Decomposition
+
+Capability is partitioned into modules. Each module is a self-contained vertical
+that realizes the engine and orchestration roles for a single, well-defined
+capability. Modules build, run, and ship independently of one another, and
+remain runnable in isolation through their launcher even when root-level
+integration is absent.
+
 ---
- 
+
 ## Layer Responsibilities
- 
-### Qt Desktop Application (Native Client)
- 
-- Native OS integration
-- Event loop ownership
-- Visualization
-- HTTP client communication with API (when API is realized)
 
-HTML inside Qt is optional and not required by the standard.
- 
-### Web Frontend (Browser Client)
- 
-- UI rendering
-- Job submission
-- Monitoring
-- Visualization
+**C++ Engines (per module).** Numerical solvers, Monte Carlo execution,
+mesh/grid operations, seed-controlled RNG, parallel compute. Heavy computation
+lives here. Engines expose capability to orchestration through a binding layer
+that does not leak engine internals upward.
 
-Web clients communicate exclusively through the API.
- 
-### Python API (Future Root-Level)
- 
-- Endpoint exposure
-- Input validation
-- Authentication
-- Async job handling
-- Dispatch to module orchestration
+**Python Orchestration (per module).** Workflow assembly, engine coordination,
+post-processing, metadata management. Realized in `main_<name>.py`; artifact form
+scales with complexity.
 
-### Python Orchestration (Per Module)
- 
-- Workflow assembly
-- Engine coordination
-- Post-processing
-- Metadata management
+**Python API (shared, root-level).** Endpoint exposure, input validation,
+authentication, async job handling, dispatch to module orchestrators.
 
-Artifact form scales with module complexity (package or launcher).
- 
-### C++ Engines (Per Module)
- 
-- Numerical solvers
-- Monte Carlo execution
-- Mesh/grid operations
-- Seed-controlled RNG
-- Parallel compute
+**Qt Desktop Application.** Native OS integration, event loop ownership,
+visualization, HTTP client communication with the API. A module may ship its own
+desktop component; the shared desktop shell composes them. HTML inside Qt is
+optional.
 
-Heavy computation lives here.
- 
+**Web Frontend.** UI rendering, job submission, monitoring, visualization. Web
+clients communicate exclusively through the API. A module may ship its own web
+component; the shared web frontend composes them.
+
 ---
- 
+
 ## Modules
- 
-A module is the structural unit of CyHAN v1.1.
- 
-Every module SHALL:
- 
+
+A module is the structural unit of CyHAN. Every module SHALL:
+
 - Contain its own C++ engine
-- Realize the orchestration role in Python (package or launcher form)
-- Ship a `run_<name>.py` launcher script
+- Realize the orchestration role in `main_<name>.py` (expandable to a package)
+- Ship a user-facing launcher, `run_<name>.py`, at the module root
 - Build, run, and be distributable independently of sibling modules
 
-Modules MAY additionally include module-scoped frontend components, tests, reference data, and documentation.
- 
-The module identifier `<name>` is `snake_case` and identifies the module end-to-end.
- 
----
- 
-## Deployment Modes
- 
-CyHAN supports multiple deployment modes. All modes preserve the canonical execution path.
- 
-### Desktop Mode
- 
-```
-Desktop Client → API → Module Orchestration → C++ Engine
-```
- 
-### Cloud Mode
- 
-```
-Web Client → API → Module Orchestration → C++ Engine
-```
- 
-### CLI Mode
- 
-```
-Command-Line Interface → Module Orchestration → C++ Engine
-```
- 
-CLI mode MAY bypass the API role but SHALL NOT bypass the orchestration role.
- 
-In v1.1, prior to root-level API integration, CLI mode against individual modules is the operative deployment posture. Full Desktop and Cloud modes are anticipated future work.
- 
----
- 
-## Compliance Requirements
- 
-A system is CyHAN Standard v1.1 compliant if:
- 
-- Heavy numerical computation resides in C++
-- Workflow orchestration is implemented in Python (package or launcher form, per §4.2 of the standard)
-- C++ engine code contains no HTTP, UI, or workflow orchestration logic
-- Each module is self-contained
-- Each module ships a launcher script
-- When realized, the API surface is the sole client-facing boundary
-- Desktop and Web (when realized) share backend semantics
-- Reproducible execution is supported
+Modules MAY additionally include module-scoped frontend components, tests,
+reference data, and documentation. The module identifier `<name>` is
+`snake_case` and identifies the module end-to-end. The standard prescribes no
+project-wide prefix or branding; an implementation MAY adopt a consistent
+`<prefix>` for derived artifact names.
 
-Compliance is behavioral, not file-presence-based.
- 
 ---
- 
+
+## Root-Level Integration
+
+Above the modules sits a shared integration tier that composes them into one
+system:
+
+- **Shared API** at `backend/api/python/` imports per-module orchestrators and
+  dispatches external requests into them. It is not itself a module.
+- **Shared frontends** at `frontend/desktop/` and `frontend/web/` compose
+  module-scoped GUIs and UIs into unified clients.
+
+Root-level integration composes modules but is never required for a module to
+build or run. Each module remains independently operable through its launcher.
+
+---
+
+## Deployment Modes
+
+All modes preserve the canonical execution path.
+
+```
+Desktop Mode:   Desktop Client → API → Module Orchestration → C++ Engine
+Cloud Mode:     Web Client     → API → Module Orchestration → C++ Engine
+Launcher / CLI: Launcher or CLI      → Module Orchestration → C++ Engine
+```
+
+Launcher and CLI invocation MAY bypass the API role but SHALL NOT bypass the
+orchestration role. Direct invocation through a module's launcher is a
+first-class deployment posture, not a degraded one.
+
+---
+
+## Compliance Requirements
+
+A system is CyHAN v2.0 compliant if:
+
+- Heavy numerical computation resides in C++
+- The orchestration role is realized in a non-user-facing orchestrator the
+  launcher invokes
+- The launcher is a user-facing control surface with options and a launch call,
+  and no orchestration logic
+- C++ engine code contains no HTTP, UI, or workflow orchestration logic
+- Each module is self-contained and runnable in isolation via its launcher
+- Each module ships both mandatory entry files
+- The shared API, where deployed, is the sole client-facing boundary and
+  dispatches only through orchestrators
+- Desktop and web frontends share backend semantics
+- Execution parity and reproducible execution are preserved
+
+Compliance is behavioral, not file-presence-based. The two mandatory entry files
+are required because they are the minimum realization of the launcher and
+orchestrator roles, not as a structural checkbox.
+
+---
+
 ## Performance Doctrine
- 
+
 - Heavy compute MUST remain in C++
-- Python coordinates, not dominates
+- Python coordinates, it does not dominate
 - Python footprint per module SHOULD be proportional to orchestration complexity
-- API overhead must be negligible relative to engine execution
-- Scaling occurs at the worker orchestration layer
+- API overhead SHOULD be negligible relative to engine runtime
+- Scaling occurs at the worker or orchestration layer
+
 ---
- 
+
 ## Recommended Project Structure
- 
+
 ```
 project-root/
 │
 ├── modules/
 │   ├── <name>/
+│   │   ├── run_<name>.py                  launcher (user-facing)
 │   │   ├── README.md
 │   │   ├── backend/
 │   │   │   ├── engines/
-│   │   │   │   └── cpp/
-│   │   │   └── python/                 (optional)
-│   │   ├── frontend/                   (optional)
+│   │   │   │   └── cpp/                    C++ engine + bindings
+│   │   │   └── python/
+│   │   │       └── main_<name>.py          orchestrator (not user-facing)
+│   │   ├── frontend/                       (optional, module-scoped)
 │   │   │   ├── desktop/
 │   │   │   └── web/
-│   │   ├── scripts/
-│   │   │   └── run_<name>.py
 │   │   ├── tests/
-│   │   ├── data/
+│   │   ├── data/                           (optional)
+│   │   │   ├── inputs/
+│   │   │   │   ├── raw/                     unmodified source inputs
+│   │   │   │   └── processed/               preprocessed, engine-ready inputs
+│   │   │   └── outputs/                     engine / orchestrator results
 │   │   └── docs/
 │   └── <other modules>/
 │
-└── docs/
-    └── CyHAN-Standard-v1.1.md
+├── backend/
+│   └── api/
+│       └── python/                         shared API surface
+│
+├── frontend/
+│   ├── desktop/                            shared desktop shell (optional)
+│   └── web/                                shared web frontend (optional)
+│
+├── docs/
+│   └── CyHAN-Standard-v2.0.md
+│
+└── tests/                                  (optional, cross-module)
 ```
- 
-Modules are canonical units of capability. Each module is self-contained.
- 
-Root-level `backend/api/`, `frontend/desktop/`, and `frontend/web/` directories are anticipated future work and SHALL NOT exist until that amendment lands.
- 
+
+Modules are the canonical units of capability; the root tier composes them. The
+launcher sits at the module root for discoverability; the orchestrator sits under
+`backend/python/`, separating the operator's surface from the developer's. The
+`data/` convention (`inputs/raw/`, `inputs/processed/`, `outputs/`) names the
+default targets a launcher points at; a module uses only the subdirectories its
+workflow needs.
+
 ---
- 
+
 ## What CyHAN Is
- 
+
 - Compute-first
 - C++-first in numerical authority
 - Reproducible
@@ -266,16 +301,16 @@ Root-level `backend/api/`, `frontend/desktop/`, and `frontend/web/` directories 
 - Architecturally unified
 
 ## What CyHAN Is Not
- 
+
 - UI-first
 - Web-only
+- Multi-path
 - Monolithic C++
 - Python-only
 - Python-by-default
-- Multi-path
+
 ---
- 
+
 For the complete technical specification, see:
- 
-[`docs/CyHAN-Standard-v1.1.md`](docs/CyHAN-Standard-v1.1.md)
- 
+
+`docs/CyHAN-Standard-v2.0.md`
